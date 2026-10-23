@@ -1,0 +1,459 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Job Income</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+/* Layout: one calm column. Controls on top, summary tiles, a monthly bar chart that doubles as a month picker, then tabbed tables. */
+:root{
+  --bg:#f3f6f4; --surface:#ffffff; --fg:#16201c; --muted:#5b6a63; --line:#dbe3de; --hl:#eaf4f0;
+  --accent:#0d6a5b; --accent-fg:#ffffff; --c-insp:#0d6a5b; --c-rep:#d98a1c;
+  --good:#1b7a3d; --bad:#b4372a;
+  --font:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1714; --surface:#17211d; --fg:#e7efeb; --muted:#97a69f; --line:#27342f; --hl:#1c2d27;
+  --accent:#3ec1a8; --accent-fg:#0a1411; --c-insp:#3ec1a8; --c-rep:#f0a944;
+  --good:#5fd18a; --bad:#ff8878; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1714; --surface:#17211d; --fg:#e7efeb; --muted:#97a69f; --line:#27342f; --hl:#1c2d27;
+  --accent:#3ec1a8; --accent-fg:#0a1411; --c-insp:#3ec1a8; --c-rep:#f0a944;
+  --good:#5fd18a; --bad:#ff8878; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:26px;line-height:1.15;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:15px;margin:0;font-weight:600}
+.sub{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{background:var(--accent);color:var(--accent-fg);border:0;border-radius:8px;padding:9px 14px;font-weight:600;display:inline-block}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+.drop{display:flex;flex-direction:column;align-items:flex-start;gap:12px;border:2px dashed var(--line);border-radius:12px;padding:28px 20px;background:var(--surface)}
+.drop.over{border-color:var(--accent);background:var(--hl)}
+.drop p{margin:0;color:var(--muted)} .drop strong{color:var(--fg)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.bar .info{min-width:0;color:var(--muted);font-size:13px}
+.bar .info b{color:var(--fg);font-weight:600}
+.badge{font-size:12px;font-weight:600;background:var(--c-rep);color:#1b1200;border-radius:99px;padding:2px 9px;margin-right:6px}
+.msg{color:var(--bad);font-size:13px;margin:0}
+.controls{display:flex;flex-direction:column;gap:14px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.ctl>label,.ctl>.lab{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;min-width:74px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:99px;padding:5px 12px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 12px;font-size:13px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);font-weight:600}
+select,input[type=date],input[type=text],input[type=number],input[type=search]{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:13px;max-width:100%}
+.hint{font-size:12px;color:var(--muted);margin:0}
+details.set summary{cursor:pointer;font-size:13px;color:var(--muted)}
+details.set .ctl{margin-top:10px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.tile.hero{grid-column:span 2;background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.tile .k{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tile.hero .k{color:inherit;opacity:.85}
+.tile .v{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:2px}
+.tile.hero .v{font-size:38px}
+.tile .s{font-size:13px;color:var(--muted);margin-top:2px}
+.tile.hero .s{color:inherit;opacity:.9}
+.up{color:var(--good)} .down{color:var(--bad)}
+.tile.hero .up,.tile.hero .down{color:inherit;font-weight:600}
+.cardhead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:8px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.chartwrap{overflow-x:auto;padding-bottom:4px}
+.chartwrap svg{display:block}
+.ax{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.grid{stroke:var(--line);stroke-width:1}
+.bi{fill:var(--c-insp)} .br{fill:var(--c-rep)}
+.col{cursor:pointer} .col.dim .bi,.col.dim .br{opacity:.3}
+.col .hit{fill:transparent} .col:hover .hit{fill:var(--hl);opacity:.6}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:-4px 0 12px;overflow-x:auto}
+.tabs button{border:0;background:transparent;padding:9px 14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+.note{margin:0 0 10px;color:var(--muted);font-size:13px}
+.note b{color:var(--fg)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:top}
+td.wrapc{white-space:normal;min-width:160px}
+th{font-size:12px;color:var(--muted);font-weight:600;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--surface)}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.hl td{background:var(--hl)}
+tr[data-r]{cursor:pointer}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pill{font-size:12px;border-radius:99px;padding:1px 8px;border:1px solid var(--line)}
+.pill.i{border-color:var(--c-insp);color:var(--c-insp)} .pill.f{border-color:var(--c-rep);color:var(--c-rep)}
+.empty{color:var(--muted);padding:20px 0}
+@media (max-width:520px){.tile.hero{grid-column:span 2}.tile .v{font-size:24px}.tile.hero .v{font-size:32px}.ctl>label,.ctl>.lab{min-width:100%}}
+@media (prefers-reduced-motion:no-preference){.tile,.card{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Job Income</h1>
+    <p class="sub">Upload your invoice exports to see what you earned each month, with repair invoices tied back to the inspections that led to them. Files are read in your browser and are not uploaded anywhere.</p>
+  </header>
+
+  <section id="intake"></section>
+
+  <div id="app" hidden>
+    <section class="card controls">
+      <div class="ctl" id="presets"><span class="lab">Period</span></div>
+      <div class="ctl">
+        <label for="monthSel">Month</label><select id="monthSel"></select>
+        <label for="fromD" style="min-width:auto">From</label><input type="date" id="fromD">
+        <label for="toD" style="min-width:auto">To</label><input type="date" id="toD">
+      </div>
+      <div class="ctl"><span class="lab">Amounts</span>
+        <span class="seg" id="segVat"><button data-v="net">Excluding VAT</button><button data-v="gross">Including VAT</button></span>
+      </div>
+      <div class="ctl"><span class="lab">Repairs count in</span>
+        <span class="seg" id="segAttr"><button data-v="invoice">Month invoiced</button><button data-v="inspection">Month of the inspection</button></span>
+      </div>
+      <p class="hint" id="attrHint"></p>
+      <details class="set"><summary>Settings: how inspections are detected</summary>
+        <div class="ctl"><label for="kw">Inspection words</label><input type="text" id="kw" size="34">
+          <label for="win" style="min-width:auto">Link repairs within</label><input type="number" id="win" min="7" max="1000" style="width:80px"><span class="hint">days of the inspection, same property</span></div>
+        <p class="hint">A line whose description or item code contains one of these words counts as inspection income. Everything else is repair or other work.</p>
+      </details>
+    </section>
+
+    <section id="tiles" class="tiles"></section>
+
+    <section class="card">
+      <div class="cardhead"><h2>Income by month <span class="hint" style="font-weight:400">(tap a bar to pick that month)</span></h2>
+        <div class="legend"><span><i style="background:var(--c-insp)"></i>Inspections</span><span><i style="background:var(--c-rep)"></i>Repairs and other</span></div></div>
+      <div class="chartwrap" id="chart"></div>
+    </section>
+
+    <section class="card">
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-t="months">Months</button>
+        <button role="tab" data-t="jobs">Jobs</button>
+        <button role="tab" data-t="customers">Customers</button>
+        <button role="tab" data-t="invoices">Invoices</button>
+      </div>
+      <div id="panel"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>{const n=parseFloat(String(v??'').replace(/[£,\s]/g,''));return isNaN(n)?0:n};
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const pad=n=>String(n).padStart(2,'0');
+const _t=new Date(); const TODAY=_t.getFullYear()+'-'+pad(_t.getMonth()+1)+'-'+pad(_t.getDate());
+function pdate(s){s=String(s||'').trim();let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];
+  m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);if(m){const y=m[3].length==2?'20'+m[3]:m[3];return y+'-'+pad(m[2])+'-'+pad(m[1]);}return null}
+const dnum=s=>{const [y,m,d]=s.split('-').map(Number);return Date.UTC(y,m-1,d)/864e5};
+const fromDn=n=>new Date(n*864e5).toISOString().slice(0,10);
+const addDays=(s,n)=>fromDn(dnum(s)+n);
+const monthEnd=m=>{const [y,mo]=m.split('-').map(Number);return new Date(Date.UTC(y,mo,0)).toISOString().slice(0,10)};
+const addMonths=(m,n)=>{const [y,mo]=m.split('-').map(Number);const d=new Date(Date.UTC(y,mo-1+n,1));return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)};
+const fmtD=s=>{const [y,m,d]=s.split('-');return +d+' '+MN[m-1]+' '+y};
+const fmtM=m=>MN[+m.slice(5)-1]+' '+m.slice(0,4);
+const gbp=(n,dp=0)=>(n<-0.005?'-':'')+'£'+Math.abs(n).toLocaleString('en-GB',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const median=a=>{if(!a.length)return null;a=[...a].sort((x,y)=>x-y);const h=a.length>>1;return a.length%2?a[h]:(a[h-1]+a[h])/2};
+const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+
+/* ---------- state ---------- */
+const DEF={vat:'net',attr:'invoice',kw:'EICR, PAT, LRA, inspection',win:180};
+let S={...DEF};
+try{const j=JSON.parse(localStorage.getItem('jobincome.settings')||'null');if(j)S={...DEF,...j}}catch(e){}
+const saveS=()=>{try{localStorage.setItem('jobincome.settings',JSON.stringify(S))}catch(e){}};
+let lines=new Map(),files=[],invoices=[],isSample=false,R={from:null,to:null,key:'all'},tab='months',search='',msg='';
+const T={months:{k:'m',dir:-1},jobs:{k:'date',dir:-1},customers:{k:'inc',dir:-1},invoices:{k:'date',dir:-1}};
+
+/* ---------- ingest ---------- */
+function ingest(rows,name){
+  rows.forEach(r=>{const id=String(r['Invoice Number']||'').trim();if(!id)return;lines.set(id+'|'+(r['Line Number']||lines.size),r)});
+  files.push(name);rebuild();
+}
+function rebuild(){
+  const m=new Map();
+  lines.forEach(r=>{
+    const id=String(r['Invoice Number']).trim();let inv=m.get(id);
+    if(!inv){inv={id,customer:String(r['Customer']||'').trim(),ref:String(r['Reference']||'').trim(),date:pdate(r['Invoice Date']),
+      subtotal:num(r['Subtotal']),tax:num(r['Tax']),total:num(r['Total']),paid:num(r['Paid']),due:num(r['Due']),lines:[]};m.set(id,inv)}
+    inv.lines.push({d:(r['Line Description']||'')+' '+(r['Line Item Code']||''),a:num(r['Line Amount'])});
+  });
+  invoices=[...m.values()].filter(i=>i.date);
+  if(R.key==='init')R=presetRange('l12');
+  compute();render();
+}
+function kwRe(){
+  const k=S.kw.split(',').map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  return k.length?new RegExp('\\b('+k.join('|')+')\\b','i'):null;
+}
+function compute(){
+  const re=kwRe();
+  invoices.forEach(i=>{
+    let insp=0;if(re)i.lines.forEach(l=>{if(re.test(l.d))insp+=l.a});
+    insp=Math.max(0,Math.min(insp,i.subtotal));
+    i.insp=insp;i.rep=i.subtotal-insp;i.primary=insp>0&&insp>=i.subtotal*0.5;i.anchor=null;i.repairs=[];
+    const f=S.vat==='gross'&&i.subtotal?i.total/i.subtotal:1;
+    i.vInsp=insp*f;i.vRep=i.rep*f;i.v=i.subtotal*f;
+    const k=i.total?(S.vat==='gross'?1:i.subtotal/i.total):1;
+    i.vPaid=i.paid*k;i.vDue=i.due*k;i.vTax=i.tax;
+  });
+  const g={};
+  invoices.forEach(i=>{const k=i.ref.toLowerCase().replace(/[^a-z0-9]/g,'');if(k)(g[k]=g[k]||[]).push(i)});
+  Object.values(g).forEach(a=>{
+    a.sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:x.id<y.id?-1:1);
+    let last=null;
+    a.forEach(i=>{
+      if(i.primary){i.anchor=i;last=i}
+      else if(last&&dnum(i.date)-dnum(last.date)<=S.win){i.anchor=last;last.repairs.push(i)}
+    });
+  });
+  invoices.forEach(i=>{
+    i.attr=(S.attr==='inspection'&&i.anchor&&i.anchor!==i)?i.anchor.date:i.date;
+    i.month=i.attr.slice(0,7);
+  });
+}
+
+/* ---------- ranges ---------- */
+function presetRange(k){
+  const cm=TODAY.slice(0,7),y=TODAY.slice(0,4);
+  switch(k){
+    case 'tm':return{from:cm+'-01',to:monthEnd(cm),key:k};
+    case 'lm':{const m=addMonths(cm,-1);return{from:m+'-01',to:monthEnd(m),key:k}}
+    case 'l3':return{from:addMonths(cm,-2)+'-01',to:monthEnd(cm),key:k};
+    case 'l12':return{from:addMonths(cm,-11)+'-01',to:monthEnd(cm),key:k};
+    case 'ty':return{from:y+'-01-01',to:y+'-12-31',key:k};
+    case 'ly':return{from:(y-1)+'-01-01',to:(y-1)+'-12-31',key:k};
+    default:return{from:null,to:null,key:'all'};
+  }
+}
+const PRESETS=[['tm','This month'],['lm','Last month'],['l3','Last 3 months'],['l12','Last 12 months'],['ty','This year'],['ly','Last year'],['all','All time']];
+const inR=(d,r=R)=>(!r.from||d>=r.from)&&(!r.to||d<=r.to);
+const selected=()=>invoices.filter(i=>inR(i.attr));
+const rangeLabel=()=>{
+  if(!R.from&&!R.to)return 'All time';
+  if(R.key.startsWith('m:'))return fmtM(R.key.slice(2));
+  return fmtD(R.from||invoices.reduce((a,i)=>i.attr<a?i.attr:a,'9999'))+' to '+fmtD(R.to||TODAY);
+};
+
+/* ---------- intake ---------- */
+function renderIntake(){
+  const el=$('#intake');
+  if(!invoices.length){
+    el.innerHTML=`<label class="drop" id="dz" for="file"><strong>Drop your invoice CSV files here</strong>
+      <p>Export from your invoicing software and add as many files as you like. Invoices that appear twice are only counted once.</p>
+      <span class="row"><span class="btn">Choose files</span><button type="button" class="btn ghost" id="sampleBtn">Try example data</button></span>
+      <input type="file" id="file" accept=".csv,text/csv" multiple hidden></label>${msg?`<p class="msg">${esc(msg)}</p>`:''}`;
+    return;
+  }
+  const ds=invoices.map(i=>i.date).sort();
+  el.innerHTML=`<div class="card bar" id="dz"><div class="info">${isSample?'<span class="badge">Example data</span>':''}<b>${invoices.length.toLocaleString('en-GB')}</b> invoices from ${esc(files.length>1?files.length+' files':files[0])}, ${fmtD(ds[0])} to ${fmtD(ds[ds.length-1])}</div>
+    <div class="row"><label class="btn ghost" for="file">${isSample?'Upload your files':'Add more files'}</label><button class="btn ghost" id="clearBtn" type="button">Clear</button>
+    <input type="file" id="file" accept=".csv,text/csv" multiple hidden></div></div>${msg?`<p class="msg">${esc(msg)}</p>`:''}`;
+}
+function readFiles(fs){
+  msg='';
+  [...fs].forEach(f=>{
+    Papa.parse(f,{header:true,skipEmptyLines:true,complete:r=>{
+      if(!(r.meta.fields||[]).includes('Invoice Number')){msg=`"${f.name}" doesn't look like an invoice export (no "Invoice Number" column).`;renderIntake();return}
+      if(isSample){lines=new Map();files=[];isSample=false}
+      ingest(r.data,f.name);
+    },error:()=>{msg='Could not read '+f.name;renderIntake()}});
+  });
+}
+document.addEventListener('change',e=>{if(e.target.id==='file'){readFiles(e.target.files);e.target.value=''}});
+['dragover','dragenter'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target.closest&&e.target.closest('#dz')){e.preventDefault();$('#dz').classList.add('over')}}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{const d=$('#dz');if(d)d.classList.remove('over')}));
+document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#dz')){e.preventDefault();readFiles(e.dataTransfer.files)}});
+
+/* ---------- example data ---------- */
+function makeSample(){
+  let s=11;const rnd=()=>(s=(s*16807)%2147483647)/2147483647,pick=a=>a[Math.floor(rnd()*a.length)];
+  const cust=['Harbour Lettings','Northgate Properties','Mrs A. Patel','Cardonald Homes','Clyde Valley Rentals'];
+  const st=['Albion Street','Dalveen Street','Carrick Road','Jedburgh Place','Bridge View','Laberge Gardens','Herald Court','Orchard Lane'];
+  const props=Array.from({length:50},(_,i)=>({ref:(1+Math.floor(rnd()*40))+' '+st[i%st.length]+' '+(i+1),c:pick(cust)}));
+  const rows=[];let n=1;
+  const add=(dn,p,items)=>{
+    if(dn>dnum(TODAY))return;const id='INV'+String(n++).padStart(5,'0'),sub=items.reduce((t,x)=>t+x[1],0),vat=rnd()<.55?.2:0;
+    const tax=+(sub*vat).toFixed(2),tot=sub+tax,paid=(dnum(TODAY)-dn<30&&rnd()<.5)?0:tot,d=fromDn(dn);
+    items.forEach((x,k)=>rows.push({'Invoice Number':id,'Customer':p.c,'Reference':p.ref,'Invoice Date':d,'Subtotal':sub,'Tax':tax,'Total':tot,'Paid':paid,'Due':tot-paid,'Line Number':k+1,'Line Description':x[0],'Line Amount':x[1]}));
+  };
+  const start=dnum('2025-01-01'),end=dnum(TODAY);
+  for(let dn=start;dn<=end;dn+=1){
+    if(rnd()<.62&&![0,6].includes(new Date(dn*864e5).getUTCDay())){
+      const p=pick(props),kind=pick([['EICR',150],['EICR',150],['PAT',90],['LRA',60]]);
+      add(dn,p,[[kind[0],kind[1]]]);
+      if(rnd()<.45)add(dn+5+Math.floor(rnd()*115),p,pick([
+        [['Labour',100],['Aico mains optical SMOKE detector',3*35]],[['Labour',200],['IP rated light LED',45]],
+        [['18th edition RCBO/SPD Consumer Unit Upgrade',520]],[['Labour',50],['Double switched socket',22]]]));
+    }
+    if(rnd()<.2)add(dn,pick(props),[['Labour',50*(1+Math.floor(rnd()*3))],['Misc materials',Math.round(5+rnd()*40)]]);
+  }
+  lines=new Map();rows.forEach(r=>lines.set(r['Invoice Number']+'|'+r['Line Number'],r));
+  files=['example data'];isSample=true;rebuild();
+}
+document.addEventListener('click',e=>{
+  if(e.target.id==='sampleBtn'){e.preventDefault();makeSample()}
+  if(e.target.id==='clearBtn'){lines=new Map();files=[];invoices=[];isSample=false;msg='';render()}
+});
+
+/* ---------- controls ---------- */
+function renderControls(){
+  $('#presets').innerHTML='<span class="lab">Period</span>'+PRESETS.map(([k,l])=>`<button class="chip" data-p="${k}" aria-pressed="${R.key===k}">${l}</button>`).join('');
+  const ms=[...new Set(invoices.map(i=>i.month))].sort().reverse();
+  $('#monthSel').innerHTML='<option value="">Pick a month…</option>'+ms.map(m=>`<option value="${m}" ${R.key==='m:'+m?'selected':''}>${fmtM(m)}</option>`).join('');
+  $('#fromD').value=R.from||'';$('#toD').value=R.to||'';
+  document.querySelectorAll('#segVat button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.vat));
+  document.querySelectorAll('#segAttr button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.attr));
+  $('#attrHint').textContent=S.attr==='invoice'
+    ?'Every invoice counts in the month it was issued. A repair done months after its inspection counts in the repair month.'
+    :'Repair invoices count in the month of the inspection that led to them, so a job shows its full value in one month. Recent months can still grow as repairs come in.';
+  if($('#kw')!==document.activeElement)$('#kw').value=S.kw;
+  if($('#win')!==document.activeElement)$('#win').value=S.win;
+}
+$('#presets').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(b){R=presetRange(b.dataset.p);render()}});
+$('#monthSel').addEventListener('change',e=>{const m=e.target.value;if(m){R={from:m+'-01',to:monthEnd(m),key:'m:'+m};render()}});
+['fromD','toD'].forEach(id=>$('#'+id).addEventListener('change',()=>{
+  const f=$('#fromD').value||null,t=$('#toD').value||null;R={from:f,to:t,key:(f||t)?'custom':'all'};render()}));
+$('#segVat').addEventListener('click',e=>{const b=e.target.closest('button');if(b){S.vat=b.dataset.v;saveS();compute();render()}});
+$('#segAttr').addEventListener('click',e=>{const b=e.target.closest('button');if(b){S.attr=b.dataset.v;saveS();compute();render()}});
+$('#kw').addEventListener('input',e=>{S.kw=e.target.value;saveS();compute();render()});
+$('#win').addEventListener('input',e=>{const v=parseInt(e.target.value,10);if(v>0){S.win=v;saveS();compute();render()}});
+
+/* ---------- tiles ---------- */
+function renderTiles(){
+  const sel=selected(),inc=sum(sel,i=>i.v),insp=sum(sel,i=>i.vInsp),rep=sum(sel,i=>i.vRep);
+  const paid=sum(sel,i=>i.vPaid),due=sum(sel,i=>i.vDue),tax=sum(sel,i=>i.vTax),n=sel.length;
+  let delta='';
+  if(R.from&&R.to){
+    const len=dnum(R.to)-dnum(R.from)+1,pr={from:addDays(R.from,-len),to:addDays(R.from,-1)};
+    const pinc=sum(invoices.filter(i=>inR(i.attr,pr)),i=>i.v);
+    if(pinc>0){const p=(inc-pinc)/pinc*100;delta=` · <span class="${p>=0?'up':'down'}">${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(0)}%</span> vs the ${len}-day period before`}
+  }
+  const vatNote=S.vat==='net'?(tax?`VAT of ${gbp(tax)} not included`:'No VAT'):(tax?`Includes ${gbp(tax)} VAT`:'No VAT');
+  $('#tiles').innerHTML=`
+   <div class="tile hero"><div class="k">Income, ${esc(rangeLabel())}</div><div class="v">${gbp(inc)}</div><div class="s">${n} invoice${n==1?'':'s'}${delta}<br>${vatNote}</div></div>
+   <div class="tile"><div class="k">Inspections</div><div class="v">${gbp(insp)}</div><div class="s">${inc?Math.round(insp/inc*100):0}% of income</div></div>
+   <div class="tile"><div class="k">Repairs and other</div><div class="v">${gbp(rep)}</div><div class="s">${inc?Math.round(rep/inc*100):0}% of income</div></div>
+   <div class="tile"><div class="k">Paid so far</div><div class="v">${gbp(paid)}</div><div class="s">${inc?Math.round(paid/inc*100):0}% of invoiced</div></div>
+   <div class="tile"><div class="k">Still owed</div><div class="v">${gbp(due)}</div><div class="s">${sel.filter(i=>i.due>0.005).length} unpaid invoice${sel.filter(i=>i.due>0.005).length==1?'':'s'}</div></div>
+   <div class="tile"><div class="k">Average invoice</div><div class="v">${gbp(n?inc/n:0)}</div><div class="s">${gbp(median(sel.map(i=>i.v))||0)} median</div></div>`;
+}
+
+/* ---------- chart ---------- */
+function monthsAgg(){
+  const m={};
+  invoices.forEach(i=>{const a=m[i.month]=m[i.month]||{m:i.month,inc:0,insp:0,rep:0,n:0,paid:0,due:0};
+    a.inc+=i.v;a.insp+=i.vInsp;a.rep+=i.vRep;a.n++;a.paid+=i.vPaid;a.due+=i.vDue});
+  return m;
+}
+function renderChart(){
+  const agg=monthsAgg(),ks=Object.keys(agg).sort();if(!ks.length){$('#chart').innerHTML='';return}
+  const all=[];for(let m=ks[0];m<=ks[ks.length-1];m=addMonths(m,1))all.push(agg[m]||{m,inc:0,insp:0,rep:0,n:0});
+  const H=230,pl=46,pb=36,pt=10,step=36,bw=26,W=Math.max(pl+all.length*step+6,$('#chart').clientWidth||300);
+  const mx=Math.max(...all.map(a=>a.inc),1),raw=mx/4,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p;
+  const st=(f<=1?1:f<=2?2:f<=5?5:10)*p,top=st*Math.ceil(mx/st),ch=H-pt-pb,Y=v=>pt+ch-(v/top)*ch;
+  const lab=v=>v>=1000?'£'+(v/1000)+'k':'£'+v;
+  const dimAll=!R.from&&!R.to,rf=R.from?R.from.slice(0,7):'0000',rt=R.to?R.to.slice(0,7):'9999';
+  let g='';for(let v=0;v<=top+1e-9;v+=st)g+=`<line class="grid" x1="${pl}" x2="${W}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${pl-6}" y="${Y(v)+4}" text-anchor="end">${lab(Math.round(v*100)/100)}</text>`;
+  let b='';
+  all.forEach((a,i)=>{
+    const x=pl+i*step+(step-bw)/2,hi=Y(0)-Y(a.insp),hr=Y(0)-Y(a.rep),on=dimAll||(a.m>=rf&&a.m<=rt);
+    b+=`<g class="col ${on?'':'dim'}" data-m="${a.m}"><title>${fmtM(a.m)}: ${gbp(a.inc)} (${gbp(a.insp)} inspections, ${gbp(a.rep)} repairs and other), ${a.n} invoices</title>
+      <rect class="hit" x="${pl+i*step}" y="${pt}" width="${step}" height="${ch+pb}"/>
+      <rect class="bi" x="${x}" y="${Y(a.insp)}" width="${bw}" height="${Math.max(hi,0)}"/>
+      <rect class="br" x="${x}" y="${Y(a.insp)-Math.max(hr,0)}" width="${bw}" height="${Math.max(hr,0)}"/>
+      <text class="ax" x="${x+bw/2}" y="${H-pb+15}" text-anchor="middle">${MN[+a.m.slice(5)-1]}</text>
+      ${(a.m.endsWith('-01')||i===0)?`<text class="ax" x="${x+bw/2}" y="${H-pb+29}" text-anchor="middle" font-weight="600">${a.m.slice(0,4)}</text>`:''}</g>`;
+  });
+  $('#chart').innerHTML=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly income, stacked by inspections and repairs">${g}${b}</svg>`;
+  const w=$('#chart');w.scrollLeft=w.scrollWidth;
+}
+$('#chart').addEventListener('click',e=>{const g=e.target.closest('.col');if(g){const m=g.dataset.m;R={from:m+'-01',to:monthEnd(m),key:'m:'+m};render()}});
+
+/* ---------- tables ---------- */
+function tbl(id,cols,rows,o={}){
+  const s=T[id],c=cols.find(x=>x.k===s.k)||cols[0];
+  rows=[...rows].sort((a,b)=>{const x=c.v(a),y=c.v(b);return(x<y?-1:x>y?1:0)*s.dir});
+  if(!rows.length)return '<p class="empty">Nothing in this period.</p>';
+  const shown=rows.slice(0,300);
+  return `<div class="tw"><table><thead><tr>${cols.map(c=>`<th class="${c.n?'n':''}" data-sort="${c.k}">${c.l}${s.k===c.k?(s.dir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead><tbody>${
+    shown.map(r=>`<tr class="${o.hl&&o.hl(r)?'hl':''}" ${o.row?`data-r="${esc(o.row(r))}"`:''}>${cols.map(c=>`<td class="${c.n?'n':''} ${c.cls||''}">${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${rows.length>300?`<p class="hint">Showing the first 300 of ${rows.length}. Narrow the period to see the rest.</p>`:''}`;
+}
+const money=(k)=>({n:1,v:r=>r[k],f:r=>gbp(r[k],2)});
+function panelMonths(){
+  const rows=Object.values(monthsAgg());
+  const cols=[{k:'m',l:'Month',v:r=>r.m,f:r=>fmtM(r.m)},{k:'inc',l:'Income',...money('inc')},{k:'insp',l:'Inspections',...money('insp')},{k:'rep',l:'Repairs and other',...money('rep')},
+    {k:'n',l:'Invoices',n:1,v:r=>r.n,f:r=>r.n},{k:'paid',l:'Paid',...money('paid')},{k:'due',l:'Owed',...money('due')}];
+  return '<p class="note">Every month in your data. Tap a row to pick that month.</p>'+tbl('months',cols,rows,{row:r=>r.m,hl:r=>(!R.from&&!R.to)||(r.m>=(R.from||'0').slice(0,7)&&r.m<=(R.to||'9').slice(0,7))});
+}
+function panelJobs(){
+  const jobs=invoices.filter(i=>i.primary&&inR(i.date)).map(i=>{
+    const reps=[...i.repairs].sort((a,b)=>a.date<b.date?-1:1);
+    return{date:i.date,id:i.id,ref:i.ref,cust:i.customer,insp:i.v,rep:sum(reps,x=>x.v),nrep:reps.length,
+      days:reps.length?dnum(reps[0].date)-dnum(i.date):null,last:reps.length?reps[reps.length-1].date:null,total:i.v+sum(reps,x=>x.v)};
+  });
+  const withRep=jobs.filter(j=>j.nrep),orphan=selected().filter(i=>!i.primary&&!i.anchor);
+  const md=median(withRep.map(j=>j.days));
+  const note=`<p class="note"><b>${jobs.length}</b> inspection${jobs.length==1?'':'s'} in this period. <b>${withRep.length}</b> ${jobs.length?`(${Math.round(withRep.length/jobs.length*100)}%) `:''}led to repair invoices${withRep.length?`, averaging <b>${gbp(sum(withRep,j=>j.rep)/withRep.length)}</b> each, first one a median of <b>${Math.round(md)} days</b> later`:''}. Repairs are matched to the latest earlier inspection at the same property address within ${S.win} days.
+    ${orphan.length?`<br>${orphan.length} other invoice${orphan.length==1?'':'s'} (${gbp(sum(orphan,i=>i.v))}) in this period have no matching inspection.`:''}</p>`;
+  const cols=[{k:'date',l:'Inspected',v:r=>r.date,f:r=>fmtD(r.date)},{k:'ref',l:'Property',v:r=>r.ref.toLowerCase(),f:r=>esc(r.ref||'No address'),cls:'wrapc'},
+    {k:'cust',l:'Customer',v:r=>r.cust.toLowerCase(),f:r=>esc(r.cust),cls:'wrapc'},{k:'insp',l:'Inspection',...money('insp')},{k:'rep',l:'Repairs after',...money('rep')},
+    {k:'nrep',l:'Repair invoices',n:1,v:r=>r.nrep,f:r=>r.nrep||'–'},{k:'days',l:'First repair',n:1,v:r=>r.days??-1,f:r=>r.days==null?'–':r.days+' days'},{k:'total',l:'Job total',...money('total')}];
+  return note+tbl('jobs',cols,jobs);
+}
+function panelCustomers(){
+  const m={};selected().forEach(i=>{const a=m[i.customer||'(none)']=m[i.customer||'(none)']||{c:i.customer||'(none)',inc:0,n:0,paid:0,due:0,insp:0};a.inc+=i.v;a.n++;a.paid+=i.vPaid;a.due+=i.vDue;a.insp+=i.vInsp});
+  const rows=Object.values(m),tot=sum(rows,r=>r.inc)||1;
+  const cols=[{k:'c',l:'Customer',v:r=>r.c.toLowerCase(),f:r=>esc(r.c),cls:'wrapc'},{k:'inc',l:'Income',...money('inc')},{k:'sh',l:'Share',n:1,v:r=>r.inc,f:r=>Math.round(r.inc/tot*100)+'%'},
+    {k:'n',l:'Invoices',n:1,v:r=>r.n,f:r=>r.n},{k:'paid',l:'Paid',...money('paid')},{k:'due',l:'Owed',...money('due')}];
+  return tbl('customers',cols,rows);
+}
+function panelInvoices(){
+  const q=search.trim().toLowerCase();
+  const rows=selected().filter(i=>!q||(i.id+' '+i.customer+' '+i.ref).toLowerCase().includes(q));
+  const type=i=>i.primary?'Inspection':i.anchor?'Follow-up':'Other work';
+  const cols=[{k:'date',l:'Invoiced',v:r=>r.date,f:r=>fmtD(r.date)},{k:'id',l:'Invoice',v:r=>r.id,f:r=>`<span class="mono">${esc(r.id)}</span>`},
+    {k:'cust',l:'Customer',v:r=>r.customer.toLowerCase(),f:r=>esc(r.customer),cls:'wrapc'},{k:'ref',l:'Property',v:r=>r.ref.toLowerCase(),f:r=>esc(r.ref),cls:'wrapc'},
+    {k:'type',l:'Type',v:r=>type(r),f:r=>`<span class="pill ${r.primary?'i':r.anchor?'f':''}">${type(r)}</span>${r.anchor&&!r.primary?`<br><span class="hint">after ${esc(r.anchor.id)}, ${fmtD(r.anchor.date)}</span>`:''}`},
+    {k:'v',l:'Amount',...money('v')},{k:'vPaid',l:'Paid',...money('vPaid')},{k:'vDue',l:'Owed',...money('vDue')}];
+  return `<div class="row" style="margin-bottom:10px"><input type="search" id="q" placeholder="Search invoice, customer or address" value="${esc(search)}" style="min-width:260px"></div>`+tbl('invoices',cols,rows);
+}
+function renderPanel(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===tab));
+  const h={months:panelMonths,jobs:panelJobs,customers:panelCustomers,invoices:panelInvoices}[tab]();
+  const f=document.activeElement&&document.activeElement.id==='q';
+  $('#panel').innerHTML=h;
+  if(f){const q=$('#q');q.focus();q.setSelectionRange(q.value.length,q.value.length)}
+}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){tab=b.dataset.t;renderPanel()}});
+$('#panel').addEventListener('click',e=>{
+  const th=e.target.closest('th[data-sort]');
+  if(th){const s=T[tab];if(s.k===th.dataset.sort)s.dir*=-1;else{s.k=th.dataset.sort;s.dir=['m','date','c','cust','ref','id','type'].includes(s.k)?1:-1}renderPanel();return}
+  const tr=e.target.closest('tr[data-r]');
+  if(tr&&tab==='months'){const m=tr.dataset.r;R={from:m+'-01',to:monthEnd(m),key:'m:'+m};render();window.scrollTo({top:0,behavior:'smooth'})}
+});
+$('#panel').addEventListener('input',e=>{if(e.target.id==='q'){search=e.target.value;renderPanel()}});
+
+/* ---------- main ---------- */
+function render(){
+  renderIntake();
+  const has=invoices.length>0;$('#app').hidden=!has;
+  if(!has)return;
+  renderControls();renderTiles();renderChart();renderPanel();
+}
+R={from:null,to:null,key:'init'};
+render();
+window.addEventListener('resize',()=>{if(invoices.length)renderChart()});
+</script>
+
+</body></html>
